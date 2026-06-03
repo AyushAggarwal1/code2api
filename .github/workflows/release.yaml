@@ -1,0 +1,120 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            target: linux-amd64
+            exe_suffix: ""
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            target: darwin-amd64
+            exe_suffix: ""
+          - os: macos-14
+            goos: darwin
+            goarch: arm64
+            target: darwin-arm64
+            exe_suffix: ""
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            target: windows-amd64
+            exe_suffix: ".exe"
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          DATE="$(date -u +%Y-%m-%d)"
+          go build \
+            -ldflags="-s -w -X main.version=${TAG} -X main.buildDate=${DATE}" \
+            -o code2api-${{ matrix.target }}${{ matrix.exe_suffix }} \
+            .
+        shell: bash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: code2api-${{ matrix.target }}
+          path: code2api-${{ matrix.target }}${{ matrix.exe_suffix }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+
+          for dir in artifacts/*/; do
+            cp "$dir"* release/
+          done
+
+          cd release
+          chmod +x code2api-linux-amd64 code2api-darwin-amd64 code2api-darwin-arm64
+          sha256sum * > checksums-sha256.txt
+          echo "=== Release assets ==="
+          ls -lh
+          echo ""
+          cat checksums-sha256.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            **Linux / macOS — download and run:**
+            ```bash
+            # Linux (amd64)
+            curl -fsSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/code2api-linux-amd64 -o code2api
+            chmod +x code2api
+
+            # macOS (Apple Silicon)
+            curl -fsSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/code2api-darwin-arm64 -o code2api
+            chmod +x code2api
+
+            # macOS (Intel)
+            curl -fsSL https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/code2api-darwin-amd64 -o code2api
+            chmod +x code2api
+            ```
+
+            **Windows (amd64):** download `code2api-windows-amd64.exe` from the assets below.
+
+            See [README](https://github.com/${{ github.repository }}#readme) for usage instructions.
+          files: |
+            release/*
