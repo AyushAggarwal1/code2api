@@ -21,7 +21,7 @@ Discovering APIs from source code
 ## Build
 
 ```bash
-go build -o api-discovery .
+go build -o code2api .
 ```
 
 Requires Go 1.18+.
@@ -30,13 +30,13 @@ Requires Go 1.18+.
 
 ```bash
 # Scan current directory, print JSON to stdout
-./api-discovery -path .
+./code2api -path .
 
 # Scan a specific project, write results to file
-./api-discovery -path /path/to/project -output result.json
+./code2api -path /path/to/project -output result.json
 
 # Verbose mode (shows parse warnings)
-./api-discovery -path /path/to/project -output result.json -verbose
+./code2api -path /path/to/project -output result.json -verbose
 ```
 
 ### Flags
